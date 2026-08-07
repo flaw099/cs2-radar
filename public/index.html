@@ -160,26 +160,35 @@
             ctx.fillStyle = '#1a1f29';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw map image if loaded
-            if (mapImageLoaded) {
-                ctx.globalAlpha = 0.6;
-                ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
-                ctx.globalAlpha = 1.0;
-            } else {
-                // Grid fallback
-                ctx.strokeStyle = '#2d3748';
-                ctx.lineWidth = 1;
-                for (let i = 0; i <= 8; i++) {
-                    const pos = (canvas.width / 8) * i;
-                    ctx.beginPath();
-                    ctx.moveTo(pos, 0);
-                    ctx.lineTo(pos, canvas.height);
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.moveTo(0, pos);
-                    ctx.lineTo(canvas.width, pos);
-                    ctx.stroke();
-                }
+            // Draw grid background (always visible)
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 8; i++) {
+                const pos = (canvas.width / 8) * i;
+                ctx.beginPath();
+                ctx.moveTo(pos, 0);
+                ctx.lineTo(pos, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, pos);
+                ctx.lineTo(canvas.width, pos);
+                ctx.stroke();
+            }
+
+            // Draw coordinate labels
+            ctx.fillStyle = '#4a5568';
+            ctx.font = '12px monospace';
+            ctx.textAlign = 'center';
+            for (let i = 0; i <= 8; i++) {
+                const pos = (canvas.width / 8) * i;
+                const worldX = Math.floor(mapBounds.min_x + (i / 8) * (mapBounds.max_x - mapBounds.min_x));
+                const worldY = Math.floor(mapBounds.min_y + (i / 8) * (mapBounds.max_y - mapBounds.min_y));
+                ctx.fillText(worldX.toString(), pos, canvas.height - 5);
+                ctx.save();
+                ctx.translate(10, pos);
+                ctx.rotate(-Math.PI / 2);
+                ctx.fillText(worldY.toString(), 0, 0);
+                ctx.restore();
             }
 
             // Draw players
@@ -191,29 +200,30 @@
                 ctx.translate(pos.x, pos.y);
                 ctx.rotate((p.yaw + 90) * Math.PI / 180);
                 ctx.strokeStyle = isAlly ? '#4ade80' : '#ef4444';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.lineTo(0, -16);
+                ctx.lineTo(0, -20);
                 ctx.stroke();
                 ctx.restore();
 
                 // Player dot
                 ctx.fillStyle = isAlly ? '#4ade80' : '#ef4444';
                 ctx.strokeStyle = isAlly ? '#22c55e' : '#dc2626';
-                ctx.lineWidth = 2;
+                ctx.lineWidth = 3;
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+                ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
                 // Name + health
                 ctx.fillStyle = '#ffffff';
-                ctx.font = '11px sans-serif';
+                ctx.font = 'bold 12px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.shadowColor = 'rgba(0,0,0,0.9)';
-                ctx.shadowBlur = 3;
-                ctx.fillText(`${p.name} [${p.health}]`, pos.x, pos.y - 12);
+                ctx.shadowBlur = 4;
+                ctx.fillText(`${p.name}`, pos.x, pos.y - 18);
+                ctx.fillText(`[${p.health}]`, pos.x, pos.y - 6);
                 ctx.shadowBlur = 0;
             };
 
