@@ -81,14 +81,43 @@
         const status = document.getElementById('status');
         const mapInfo = document.getElementById('map-info');
 
-        // CS2 map boundaries (adjust per map if needed)
-        const MAP_BOUNDS = {
-            min_x: -3500, max_x: 3500,
-            min_y: -3500, max_y: 3500
+        // CS2 map configurations (positions and scales)
+        const MAP_CONFIGS = {
+            'de_mirage': { min_x: -3230, max_x: 1713, min_y: -3781, max_y: 1408, scale: 1.0 },
+            'de_dust2': { min_x: -2476, max_x: 3239, min_y: -2475, max_y: 2425, scale: 1.0 },
+            'de_inferno': { min_x: -2087, max_x: 3870, min_y: -3870, max_y: 1600, scale: 1.0 },
+            'de_nuke': { min_x: -3453, max_x: 2887, min_y: -3394, max_y: 2887, scale: 1.0 },
+            'de_overpass': { min_x: -4831, max_x: 1781, min_y: -3441, max_y: 1524, scale: 1.0 },
+            'de_vertigo': { min_x: -3168, max_x: 2064, min_y: -3168, max_y: 2064, scale: 1.0 },
+            'de_ancient': { min_x: -2953, max_x: 2548, min_y: -3110, max_y: 2253, scale: 1.0 },
+            'de_anubis': { min_x: -2796, max_x: 3157, min_y: -3536, max_y: 1910, scale: 1.0 }
         };
+
+        let currentMap = 'de_dust2';
+        let mapBounds = MAP_CONFIGS['de_dust2'];
+        let mapImage = new Image();
+        let mapImageLoaded = false;
 
         let ws = null;
         let radarData = null;
+
+        function loadMapImage(mapName) {
+            if (!MAP_CONFIGS[mapName]) {
+                mapName = 'de_dust2'; // fallback
+            }
+            currentMap = mapName;
+            mapBounds = MAP_CONFIGS[mapName];
+
+            mapImageLoaded = false;
+            mapImage.src = `https://raw.githubusercontent.com/Jofairden/css-assets/master/csgo/maps/radar/${mapName}_radar.png`;
+            mapImage.onload = () => {
+                mapImageLoaded = true;
+            };
+            mapImage.onerror = () => {
+                console.log('Map image failed to load, using grid fallback');
+                mapImageLoaded = false;
+            };
+        }
 
         function connect() {
             const wsUrl = location.protocol === 'https:'
@@ -104,7 +133,10 @@
 
             ws.onmessage = (event) => {
                 radarData = JSON.parse(event.data);
-                mapInfo.textContent = radarData.map;
+                if (radarData.map && radarData.map !== currentMap) {
+                    loadMapImage(radarData.map);
+                }
+                mapInfo.textContent = radarData.map || 'unknown';
                 render();
             };
 
@@ -116,8 +148,8 @@
         }
 
         function worldToRadar(x, y) {
-            const px = ((x - MAP_BOUNDS.min_x) / (MAP_BOUNDS.max_x - MAP_BOUNDS.min_x)) * canvas.width;
-            const py = canvas.height - ((y - MAP_BOUNDS.min_y) / (MAP_BOUNDS.max_y - MAP_BOUNDS.min_y)) * canvas.height;
+            const px = ((x - mapBounds.min_x) / (mapBounds.max_x - mapBounds.min_x)) * canvas.width;
+            const py = canvas.height - ((y - mapBounds.min_y) / (mapBounds.max_y - mapBounds.min_y)) * canvas.height;
             return { x: px, y: py };
         }
 
@@ -128,19 +160,26 @@
             ctx.fillStyle = '#1a1f29';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Grid
-            ctx.strokeStyle = '#2d3748';
-            ctx.lineWidth = 1;
-            for (let i = 0; i <= 8; i++) {
-                const pos = (canvas.width / 8) * i;
-                ctx.beginPath();
-                ctx.moveTo(pos, 0);
-                ctx.lineTo(pos, canvas.height);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(0, pos);
-                ctx.lineTo(canvas.width, pos);
-                ctx.stroke();
+            // Draw map image if loaded
+            if (mapImageLoaded) {
+                ctx.globalAlpha = 0.6;
+                ctx.drawImage(mapImage, 0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = 1.0;
+            } else {
+                // Grid fallback
+                ctx.strokeStyle = '#2d3748';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 8; i++) {
+                    const pos = (canvas.width / 8) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(pos, 0);
+                    ctx.lineTo(pos, canvas.height);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, pos);
+                    ctx.lineTo(canvas.width, pos);
+                    ctx.stroke();
+                }
             }
 
             // Draw players
@@ -172,13 +211,18 @@
                 ctx.fillStyle = '#ffffff';
                 ctx.font = '11px sans-serif';
                 ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.9)';
+                ctx.shadowBlur = 3;
                 ctx.fillText(`${p.name} [${p.health}]`, pos.x, pos.y - 12);
+                ctx.shadowBlur = 0;
             };
 
             radarData.allies.forEach(p => drawPlayer(p, true));
             radarData.enemies.forEach(p => drawPlayer(p, false));
         }
 
+        // Initialize
+        loadMapImage('de_dust2');
         connect();
         setInterval(render, 100);
     </script>
