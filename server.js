@@ -8,11 +8,37 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
+// Parse JSON bodies
+app.use(express.json());
+
 // Serve static files
 app.use(express.static('public'));
 
 // Store latest radar state
 let latestRadarData = null;
+
+// HTTP POST endpoint for Lua script
+app.post('/radar', (req, res) => {
+    try {
+        const data = req.body;
+        latestRadarData = data;
+
+        console.log(`[Radar] Received update: ${data.allies.length} allies, ${data.enemies.length} enemies on ${data.map}`);
+
+        // Broadcast to all connected WebSocket clients
+        const message = JSON.stringify(data);
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(message);
+            }
+        });
+
+        res.status(200).json({ status: 'ok' });
+    } catch (e) {
+        console.error('[Radar] POST error:', e);
+        res.status(400).json({ status: 'error', message: e.message });
+    }
+});
 
 // WebSocket connections
 wss.on('connection', (ws, req) => {
