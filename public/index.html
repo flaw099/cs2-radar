@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Radar</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e14;
+            color: #c7cdd8;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            overflow: hidden;
+        }
+        #status {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        #map-info {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #radar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a1f29;
+            border: 2px solid #2d3748;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        .player {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease-out;
+        }
+        .player.ally { background: #4ade80; border: 2px solid #22c55e; }
+        .player.enemy { background: #ef4444; border: 2px solid #dc2626; }
+        .player-label {
+            position: absolute;
+            font-size: 11px;
+            white-space: nowrap;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+        }
+        .player-direction {
+            position: absolute;
+            width: 2px;
+            height: 16px;
+            background: currentColor;
+            opacity: 0.7;
+            top: -16px;
+            left: 50%;
+            transform-origin: bottom center;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Connecting...</div>
+    <div id="map-info">-</div>
+    <canvas id="radar" width="800" height="800"></canvas>
+
+    <script>
+        const canvas = document.getElementById('radar');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const mapInfo = document.getElementById('map-info');
+
+        // CS2 map boundaries (adjust per map if needed)
+        const MAP_BOUNDS = {
+            min_x: -3500, max_x: 3500,
+            min_y: -3500, max_y: 3500
+        };
+
+        let ws = null;
+        let radarData = null;
+
+        function connect() {
+            const wsUrl = location.protocol === 'https:'
+                ? `wss://${location.host}/ws`
+                : `ws://${location.host}`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                status.textContent = 'Connected';
+                status.style.background = 'rgba(34, 197, 94, 0.3)';
+            };
+
+            ws.onmessage = (event) => {
+                radarData = JSON.parse(event.data);
+                mapInfo.textContent = radarData.map;
+                render();
+            };
+
+            ws.onclose = () => {
+                status.textContent = 'Disconnected';
+                status.style.background = 'rgba(239, 68, 68, 0.3)';
+                setTimeout(connect, 2000);
+            };
+        }
+
+        function worldToRadar(x, y) {
+            const px = ((x - MAP_BOUNDS.min_x) / (MAP_BOUNDS.max_x - MAP_BOUNDS.min_x)) * canvas.width;
+            const py = canvas.height - ((y - MAP_BOUNDS.min_y) / (MAP_BOUNDS.max_y - MAP_BOUNDS.min_y)) * canvas.height;
+            return { x: px, y: py };
+        }
+
+        function render() {
+            if (!radarData) return;
+
+            // Clear
+            ctx.fillStyle = '#1a1f29';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid
+            ctx.strokeStyle = '#2d3748';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 8; i++) {
+                const pos = (canvas.width / 8) * i;
+                ctx.beginPath();
+                ctx.moveTo(pos, 0);
+                ctx.lineTo(pos, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, pos);
+                ctx.lineTo(canvas.width, pos);
+                ctx.stroke();
+            }
+
+            // Draw players
+            const drawPlayer = (p, isAlly) => {
+                const pos = worldToRadar(p.x, p.y);
+
+                // Direction line
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate((p.yaw + 90) * Math.PI / 180);
+                ctx.strokeStyle = isAlly ? '#4ade80' : '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -16);
+                ctx.stroke();
+                ctx.restore();
+
+                // Player dot
+                ctx.fillStyle = isAlly ? '#4ade80' : '#ef4444';
+                ctx.strokeStyle = isAlly ? '#22c55e' : '#dc2626';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Name + health
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${p.name} [${p.health}]`, pos.x, pos.y - 12);
+            };
+
+            radarData.allies.forEach(p => drawPlayer(p, true));
+            radarData.enemies.forEach(p => drawPlayer(p, false));
+        }
+
+        connect();
+        setInterval(render, 100);
+    </script>
+</body>
+</html>
